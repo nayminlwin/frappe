@@ -48,7 +48,7 @@ def render(path=None, http_status_code=None):
 		else:
 			try:
 				data = render_page_by_language(path)
-			except frappe.DoesNotExistError:
+			except frappe.PageDoesNotExistError:
 				doctype, name = get_doctype_from_path(path)
 				if doctype and name:
 					path = "printview"
@@ -149,8 +149,8 @@ def add_preload_headers(response):
 			preload.append(("style", elem.get("href")))
 
 		links = []
-		for type, link in preload:
-			links.append("</{}>; rel=preload; as={}".format(link.lstrip("/"), type))
+		for _type, link in preload:
+			links.append("<{}>; rel=preload; as={}".format(link, _type))
 
 		if links:
 			response.headers["Link"] = ",".join(links)

@@ -395,7 +395,10 @@ class DocType(Document):
 			frappe.db.sql("""update tabSingles set value=%s
 				where doctype=%s and field='name' and value = %s""", (new, new, old))
 		else:
-			frappe.db.sql("rename table `tab%s` to `tab%s`" % (old, new))
+			frappe.db.multisql({
+				"mariadb": "RENAME TABLE `tab{old}` TO `tab{new}`".format(old=old, new=new),
+				"postgres": "ALTER TABLE `tab{old}` RENAME TO `tab{new}`".format(old=old, new=new)
+			})
 
 
 	def rename_files_and_folders(self, old, new):
@@ -659,7 +662,7 @@ class DocType(Document):
 		flags = {"flags": re.ASCII} if six.PY3 else {}
 
 		# a DocType name should not start or end with an empty space
-		if re.match("^[ \t\n\r]+|[ \t\n\r]+$", name, **flags):
+		if re.search("^[ \t\n\r]+|[ \t\n\r]+$", name, **flags):
 			frappe.throw(_("DocType's name should not start or end with whitespace"), frappe.NameError)
 
 		# a DocType's name should not start with a number or underscore
@@ -987,10 +990,10 @@ def validate_fields(meta):
 	check_image_field(meta)
 
 
-def validate_permissions_for_doctype(doctype, for_remove=False):
+def validate_permissions_for_doctype(doctype, for_remove=False, alert=False):
 	"""Validates if permissions are set correctly."""
 	doctype = frappe.get_doc("DocType", doctype)
-	validate_permissions(doctype, for_remove)
+	validate_permissions(doctype, for_remove, alert=alert)
 
 	# save permissions
 	for perm in doctype.get("permissions"):
@@ -1013,10 +1016,10 @@ def clear_permissions_cache(doctype):
 		""", doctype):
 		frappe.clear_cache(user=user)
 
-
-def validate_permissions(doctype, for_remove=False):
+def validate_permissions(doctype, for_remove=False, alert=False):
 	permissions = doctype.get("permissions")
-	if not permissions:
+	# Some DocTypes may not have permissions by default, don't show alert for them
+	if not permissions and alert:
 		frappe.msgprint(_('No Permissions Specified'), alert=True, indicator='orange')
 	issingle = issubmittable = isimportable = False
 	if doctype:

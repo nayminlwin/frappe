@@ -1,14 +1,14 @@
 Babel==2.6.0
 beautifulsoup4==4.8.1
 bleach-whitelist==0.0.10
-bleach==3.1.4
+bleach==3.3.0
 boto3==1.10.18
 braintree==3.57.1
 chardet==3.0.4
 Click==7.0
 coverage==4.5.4
 croniter==0.3.30
-cryptography==3.2
+cryptography==3.3.2
 dropbox==9.1.0
 email-reply-parser==0.5.9
 Faker==2.0.4
@@ -24,7 +24,8 @@ gunicorn==19.10.0
 html2text==2016.9.19
 html5lib==1.0.1
 ipython==5.8.0
-Jinja2==2.10.3
+Jinja2~=2.11.3
+MarkupSafe<2.1.0
 ldap3==2.7
 markdown2==2.3.9
 maxminddb-geolite2==2018.703
@@ -61,8 +62,9 @@ six==1.13.0
 sqlparse==0.2.4
 stripe==2.40.0
 terminaltables==3.1.0
+Unidecode==1.1.1
 unittest-xml-reporting==2.5.2
-urllib3==1.25.7
+urllib3==1.25.11
 watchdog==0.8.0
 Werkzeug==0.16.1
 xlrd==1.2.0

@@ -172,6 +172,7 @@ frappe.views.CommunicationComposer = Class.extend({
 
 		this.dialog.fields_dict["email_template"].df.onchange = () => {
 			var email_template = me.dialog.fields_dict.email_template.get_value();
+			if (!email_template) return;
 
 			var prepend_reply = function(reply) {
 				if(me.reply_added===email_template) {
@@ -612,9 +613,20 @@ frappe.views.CommunicationComposer = Class.extend({
 		}
 	},
 
-	setup_earlier_reply: function() {
+	get_default_outgoing_email_account_signature: function() {
+		return frappe.db.get_value('Email Account', { 'default_outgoing': 1, 'add_signature': 1 }, 'signature');
+	},
+
+	setup_earlier_reply: async function() {
 		let fields = this.dialog.fields_dict;
 		let signature = frappe.boot.user.email_signature || "";
+
+		if (!signature) {
+			const res = await this.get_default_outgoing_email_account_signature();
+			if (res.message.signature) {
+				signature = "<!-- signature-included -->" + res.message.signature;
+			}
+		}
 
 		if(!frappe.utils.is_html(signature)) {
 			signature = signature.replace(/\n/g, "<br>");
@@ -629,10 +641,16 @@ frappe.views.CommunicationComposer = Class.extend({
 				this.message = localStorage.getItem(doctype + docname) || '';
 			}
 		}
+		
+		const SALUTATION_END_COMMENT = "<!-- salutation-ends -->";
+		this.message = this.message || '';
 
-		if(this.real_name) {
-			this.message = '<p>'+__('Dear') +' '
-				+ this.real_name + ",</p><!-- salutation-ends --><br>" + (this.message || "");
+		if (this.real_name && !this.message.includes(SALUTATION_END_COMMENT)) {
+			this.message = `
+				<p>${__('Dear {0},', [this.real_name], 'Salutation in new email')},</p>
+				${SALUTATION_END_COMMENT}<br>
+				${this.message}
+			`;
 		}
 
 		if(this.message && signature && this.message.includes(signature)) {
@@ -645,8 +663,7 @@ frappe.views.CommunicationComposer = Class.extend({
 		if (this.is_a_reply === 'undefined') {
 			this.is_a_reply = true;
 		}
-
-		if (this.is_a_reply) {
+		if (this.is_a_reply || this.forward) {
 			let last_email = this.last_email;
 
 			if (!last_email) {
@@ -667,11 +684,14 @@ frappe.views.CommunicationComposer = Class.extend({
 				last_email_content += '<div>' + __('Message clipped') + '</div>' + last_email_content;
 				last_email_content = last_email_content.slice(0, 20 * 1024);
 			}
-
+			const fwd = this.forward ? "<b>Forwarded Message</b><br>" : "";
 			let communication_date = last_email.communication_date || last_email.creation;
 			content = `
 				<div><br></div>
-				${reply}
+				${this.message || ''}
+				${frappe.separator_element}
+				${fwd}
+				${signature || ''}
 				${frappe.separator_element}
 				<p>${__("On {0}, {1} wrote:", [frappe.datetime.global_date_format(communication_date) , last_email.sender])}</p>
 				<blockquote>
@@ -696,4 +716,3 @@ frappe.views.CommunicationComposer = Class.extend({
 		return text.replace(/\n{3,}/g, '\n\n');
 	}
 });
-

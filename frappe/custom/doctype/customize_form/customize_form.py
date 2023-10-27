@@ -115,12 +115,22 @@ class CustomizeForm(Document):
 
 		#If allow_auto_repeat is set, add auto_repeat custom field.
 		if self.allow_auto_repeat:
-			if not frappe.db.exists('Custom Field', {'fieldname': 'auto_repeat', 'dt': self.doc_type}):
-				insert_after = self.fields[len(self.fields) - 1].fieldname
-				df = dict(fieldname='auto_repeat', label='Auto Repeat', fieldtype='Link', options='Auto Repeat', insert_after=insert_after, read_only=1, no_copy=1, print_hide=1)
-				create_custom_field(self.doc_type, df)
+			all_fields = [df.fieldname for df in meta.fields]
+			if "auto_repeat" in all_fields:
+				return
 
-		# NOTE doc is sent to clientside by run_method
+			insert_after = self.fields[len(self.fields) - 1].fieldname
+			create_custom_field(self.doc_type, dict(
+				fieldname='auto_repeat',
+				label='Auto Repeat',
+				fieldtype='Link',
+				options='Auto Repeat',
+				insert_after=insert_after,
+				read_only=1,
+				no_copy=1,
+				print_hide=1
+			))
+
 
 	def get_name_translation(self):
 		'''Get translation object if exists of current doctype name in the default language'''
@@ -417,9 +427,14 @@ class CustomizeForm(Document):
 		self.fetch_to_customize()
 
 def reset_customization(doctype):
-	frappe.db.sql("""
-		DELETE FROM `tabProperty Setter` WHERE doc_type=%s
-			and `field_name`!='naming_series'
-			and `property`!='options'
-		""", doctype)
+	setters = frappe.get_all("Property Setter", filters={
+		'doc_type': doctype,
+		'field_name': ['!=', 'naming_series'],
+		'property': ['!=', 'options']
+	})
+
+	for setter in setters:
+		frappe.delete_doc("Property Setter", setter['name'])
+
 	frappe.clear_cache(doctype=doctype)
+		

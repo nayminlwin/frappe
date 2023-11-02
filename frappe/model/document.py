@@ -888,6 +888,7 @@ class Document(BaseDocument):
 	def load_doc_before_save(self):
 		'''Save load document from db before saving'''
 		self._doc_before_save = None
+		if self.is_new(): return
 		if not (self.is_new()
 			and (getattr(self.meta, 'track_changes', False)
 				or self.meta.get_set_only_once_fields()

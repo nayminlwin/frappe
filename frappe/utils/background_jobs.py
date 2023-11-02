@@ -16,9 +16,9 @@ from pymysql.constants import ER
 
 default_timeout = 300
 queue_timeout = {
-	'background': 2500,
-	'long': 1500,
-	'default': 300,
+	'background': 4200,
+	'long': 3600,
+	'default': 600,
 	'short': 300
 }
 

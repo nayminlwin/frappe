@@ -8,6 +8,7 @@ import base64
 import json
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils.background_jobs import enqueue
 from frappe.desk.query_report import generate_report_result
@@ -21,6 +22,21 @@ class PreparedReport(Document):
 	def before_insert(self):
 		self.status = "Queued"
 		self.report_start_time = frappe.utils.now()
+	
+	def validate(self):
+		if self.is_new() and frappe.db.exists(
+			"Prepared Report",
+			{
+				'status': 'Queued',
+				'report_name': self.report_name,
+				'filters': self.filters,
+				'owner': self.owner
+			}):
+			frappe.throw(
+			_(f"""
+Your report is already being generated. Please wait for it to be complete.
+Try clicking 'Refresh' if the report does not show up.
+			"""))
 
 	def enqueue_report(self):
 		enqueue(

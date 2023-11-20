@@ -416,6 +416,7 @@ frappe.views.QueryReport = class QueryReport extends frappe.views.BaseList {
 					report_name: this.report_name,
 					filters: filters
 				},
+				freeze: true,
 				callback: resolve
 			})).then(r => {
 				const data = r.message;

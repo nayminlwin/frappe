@@ -99,7 +99,7 @@ class BackupGenerator:
 			files_path = frappe.get_site_path(folder, "files")
 			backup_path = self.backup_path_files if folder=="public" else self.backup_path_private_files
 
-			cmd_string = """tar -cf %s %s""" % (backup_path, files_path)
+			cmd_string = """tar --exclude='*.json*.gz' -cf %s %s""" % (backup_path, files_path)
 			err, out = frappe.utils.execute_in_shell(cmd_string)
 
 			print('Backed up files', os.path.abspath(backup_path))

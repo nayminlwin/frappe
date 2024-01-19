@@ -330,6 +330,7 @@ class Document(BaseDocument):
 		if self.get("__islocal") or not self.get("name"):
 			return self.insert()
 
+		self._set_defaults()
 		self.check_permission("write", "save")
 
 		self.set_user_and_timestamp()
@@ -393,41 +394,34 @@ class Document(BaseDocument):
 
 	def update_child_table(self, fieldname, df=None):
 		"""sync child table for given fieldname"""
-		rows = []
-		if not df:
-			df = self.meta.get_field(fieldname)
+		df = df or self.meta.get_field(fieldname)
+		all_rows = self.get(df.fieldname)
 
-		for d in self.get(df.fieldname):
-			d.db_update()
-			rows.append(d.name)
-
-		if (
-			df.options in (self.flags.ignore_children_type or [])
+		# delete rows that do not match the ones in the document
+		# if the doctype isn't in ignore_children_type flag and isn't virtual
+		if not (
+			df.options in (self.flags.ignore_children_type or ())
 			or frappe.get_meta(df.options).is_virtual == 1
 		):
-			# do not delete rows for this because of flags
-			# hack for docperm :(
-			return
+			existing_row_names = [row.name for row in all_rows if row.name and not row.is_new()]
 
-		if rows:
-			# select rows that do not match the ones in the document
-			deleted_rows = frappe.db.sql(
-				"""select name from `tab{}` where parent=%s
-				and parenttype=%s and parentfield=%s
-				and name not in ({})""".format(
-					df.options, ",".join(["%s"] * len(rows))
-				),
-				[self.name, self.doctype, fieldname] + rows,
+			tbl = frappe.qb.DocType(df.options)
+			qry = (
+				frappe.qb.from_(tbl)
+				.where(tbl.parent == self.name)
+				.where(tbl.parenttype == self.doctype)
+				.where(tbl.parentfield == fieldname)
+				.delete()
 			)
-			if len(deleted_rows) > 0:
-				# delete rows that do not match the ones in the document
-				frappe.db.delete(df.options, {"name": ("in", tuple(row[0] for row in deleted_rows))})
 
-		else:
-			# no rows found, delete all rows
-			frappe.db.delete(
-				df.options, {"parent": self.name, "parenttype": self.doctype, "parentfield": fieldname}
-			)
+			if existing_row_names:
+				qry = qry.where(tbl.name.notin(existing_row_names))
+
+			qry.run()
+
+		# update / insert
+		for d in all_rows:
+			d.db_update()
 
 	def get_doc_before_save(self):
 		return getattr(self, "_doc_before_save", None)
@@ -738,16 +732,18 @@ class Document(BaseDocument):
 		if frappe.flags.in_import:
 			return
 
-		new_doc = frappe.new_doc(self.doctype, as_dict=True)
-		self.update_if_missing(new_doc)
+		if self.is_new():
+			new_doc = frappe.new_doc(self.doctype, as_dict=True)
+			self.update_if_missing(new_doc)
 
 		# children
 		for df in self.meta.get_table_fields():
-			new_doc = frappe.new_doc(df.options, as_dict=True)
+			new_doc = frappe.new_doc(df.options, parent_doc=self, parentfield=df.fieldname, as_dict=True)
 			value = self.get(df.fieldname)
 			if isinstance(value, list):
 				for d in value:
-					d.update_if_missing(new_doc)
+					if d.is_new():
+						d.update_if_missing(new_doc)
 
 	def check_if_latest(self):
 		"""Checks if `modified` timestamp provided by document being updated is same as the

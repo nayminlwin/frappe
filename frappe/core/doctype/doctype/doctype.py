@@ -4,13 +4,10 @@
 import copy
 import json
 import os
-
-# imports - standard imports
 import re
 import shutil
 from typing import TYPE_CHECKING, Union
 
-# imports - module imports
 import frappe
 from frappe import _
 from frappe.cache_manager import clear_controller_cache, clear_user_cache
@@ -1468,7 +1465,6 @@ def validate_fields(meta):
 
 		check_illegal_characters(d.fieldname)
 		check_invalid_fieldnames(meta.get("name"), d.fieldname)
-		check_unique_fieldname(meta.get("name"), d.fieldname)
 		check_fieldname_length(d.fieldname)
 		check_hidden_and_mandatory(meta.get("name"), d)
 		check_unique_and_text(meta.get("name"), d)
@@ -1478,6 +1474,7 @@ def validate_fields(meta):
 		validate_data_field_type(d)
 
 		if not frappe.flags.in_migrate:
+			check_unique_fieldname(meta.get("name"), d.fieldname)
 			check_link_table_options(meta.get("name"), d)
 			check_illegal_mandatory(meta.get("name"), d)
 			check_dynamic_link_options(d)
@@ -1522,22 +1519,12 @@ def validate_permissions_for_doctype(doctype, for_remove=False, alert=False):
 
 
 def clear_permissions_cache(doctype):
+	from frappe.cache_manager import clear_user_cache
+
 	frappe.clear_cache(doctype=doctype)
 	delete_notification_count_for(doctype)
-	for user in frappe.db.sql_list(
-		"""
-		SELECT
-			DISTINCT `tabHas Role`.`parent`
-		FROM
-			`tabHas Role`,
-			`tabDocPerm`
-		WHERE `tabDocPerm`.`parent` = %s
-			AND `tabDocPerm`.`role` = `tabHas Role`.`role`
-			AND `tabHas Role`.`parenttype` = 'User'
-		""",
-		doctype,
-	):
-		frappe.clear_cache(user=user)
+
+	clear_user_cache()
 
 
 def validate_permissions(doctype, for_remove=False, alert=False):

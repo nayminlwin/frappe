@@ -178,9 +178,7 @@ class TestReportview(FrappeTestCase):
 		self.assertEqual(results2[0].child_title, "parent 2 child record 1")
 
 	def test_link_field_syntax(self):
-		todo = frappe.get_doc(
-			doctype="ToDo", description="Test ToDo", allocated_to="Administrator"
-		).insert()
+		todo = frappe.get_doc(doctype="ToDo", description="Test ToDo", allocated_to="Administrator").insert()
 		result = frappe.get_all(
 			"ToDo",
 			filters={"name": todo.name},
@@ -745,7 +743,7 @@ class TestReportview(FrappeTestCase):
 	def test_set_field_tables(self):
 		# Tests _in_standard_sql_methods method in test_set_field_tables
 		# The following query will break if the above method is broken
-		data = frappe.db.get_list(
+		frappe.db.get_list(
 			"Web Form",
 			filters=[["Web Form Field", "reqd", "=", 1]],
 			fields=["count(*) as count"],
@@ -757,7 +755,7 @@ class TestReportview(FrappeTestCase):
 		try:
 			frappe.get_list("Prepared Report", ["*"])
 			frappe.get_list("Scheduled Job Type", ["*"])
-		except Exception as e:
+		except Exception:
 			print(frappe.get_traceback())
 			self.fail("get_list not working with virtual field")
 
@@ -828,7 +826,10 @@ class TestReportview(FrappeTestCase):
 			self.assertEqual(len(data[0]), 1)
 
 			data = frappe.get_list(
-				"Blog Post", filters={"published": 1}, fields=["name", "`tabTest Child`.`test_field`"], limit=1
+				"Blog Post",
+				filters={"published": 1},
+				fields=["name", "`tabTest Child`.`test_field`"],
+				limit=1,
 			)
 			self.assertFalse("test_field" in data[0])
 			self.assertTrue("name" in data[0])
@@ -862,9 +863,7 @@ class TestReportview(FrappeTestCase):
 			self.assertIsInstance(data[0]["abhi"], datetime.datetime)
 			self.assertEqual(len(data[0]), 2)
 
-			data = frappe.get_list(
-				"Blog Post", filters={"published": 1}, fields=["name", "'LABEL'"], limit=1
-			)
+			data = frappe.get_list("Blog Post", filters={"published": 1}, fields=["name", "'LABEL'"], limit=1)
 			self.assertTrue("name" in data[0])
 			self.assertTrue("LABEL" in data[0].values())
 			self.assertEqual(len(data[0]), 2)
@@ -1023,13 +1022,11 @@ class TestReportview(FrappeTestCase):
 		create_dashboard_settings(self.user)
 
 		dashboard_settings = frappe.db.sql(
-			"""
+			f"""
 				SELECT name
 				FROM `tabDashboard Settings`
-				WHERE {condition}
-			""".format(
-				condition=permission_query_conditions
-			),
+				WHERE {permission_query_conditions}
+			""",
 			as_dict=1,
 		)[0]
 
@@ -1074,6 +1071,8 @@ class TestReportview(FrappeTestCase):
 		# primary key is never nullable
 		self.assertNotIn("ifnull", frappe.get_all("User", {"name": ("in", ["a", None])}, run=0))
 		self.assertNotIn("ifnull", frappe.get_all("User", {"name": ("in", ["a", ""])}, run=0))
+		self.assertNotIn("ifnull", frappe.get_all("User", {"name": ("in", (""))}, run=0))
+		self.assertNotIn("ifnull", frappe.get_all("User", {"name": ("in", ())}, run=0))
 
 	def test_ambiguous_linked_tables(self):
 		from frappe.desk.reportview import get

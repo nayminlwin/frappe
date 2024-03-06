@@ -891,7 +891,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 			<span class="avatar-empty"></span>
 		</div>`;
 
-		let assigned_users = JSON.parse(doc._assign || "[]");
+		let assigned_users = doc._assign ? JSON.parse(doc._assign) : [];
 		if (assigned_users.length) {
 			assigned_to = `<div class="list-assignments">
 					${frappe.avatar_group(assigned_users, 3, { filterable: true })[0].outerHTML}
@@ -969,9 +969,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 			<span class="like-action ${heart_class}">
 				${frappe.utils.icon("heart", "sm", "like-icon")}
 			</span>
-			<span class="likes-count">
-				${liked_by.length > 99 ? __("99") + "+" : __(liked_by.length || "")}
-			</span>
+			<span class="likes-count">${liked_by.length}</span>
 		`;
 
 		const like = div.querySelector(".like-action");
@@ -1437,8 +1435,13 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 				// this doc was changed and should not be visible
 				// in the listview according to filters applied
 				// let's remove it manually
-				this.data = this.data.filter((d) => names.indexOf(d.name) === -1);
-				this.render_list();
+				this.data = this.data.filter((d) => !names.includes(d.name));
+				for (let name of names) {
+					this.$result
+						.find(`.list-row-checkbox[data-name='${name.replace(/'/g, "\\'")}']`)
+						.closest(".list-row-container")
+						.remove();
+				}
 				return;
 			}
 

@@ -169,9 +169,7 @@ def raise_invalid_field(fieldname):
 def is_standard(fieldname):
 	if "." in fieldname:
 		fieldname = fieldname.split(".")[1].strip("`")
-	return (
-		fieldname in default_fields or fieldname in optional_fields or fieldname in child_table_fields
-	)
+	return fieldname in default_fields or fieldname in optional_fields or fieldname in child_table_fields
 
 
 def extract_fieldname(field):
@@ -202,7 +200,7 @@ def get_meta_and_docfield(fieldname, data):
 
 def update_wildcard_field_param(data):
 	if (isinstance(data.fields, str) and data.fields == "*") or (
-		isinstance(data.fields, (list, tuple)) and len(data.fields) == 1 and data.fields[0] == "*"
+		isinstance(data.fields, list | tuple) and len(data.fields) == 1 and data.fields[0] == "*"
 	):
 		if frappe.get_system_settings("apply_perm_level_on_api_calls"):
 			data.fields = get_permitted_fields(data.doctype, parenttype=data.parenttype)
@@ -376,14 +374,13 @@ def export_query():
 	if add_totals_row:
 		ret = append_totals_row(ret)
 
-	data = [[_("Sr")] + get_labels(db_query.fields, doctype)]
+	data = [[_("Sr"), *get_labels(db_query.fields, doctype)]]
 	for i, row in enumerate(ret):
-		data.append([i + 1] + list(row))
+		data.append([i + 1, *list(row)])
 
 	data = handle_duration_fieldtype_values(doctype, data, db_query.fields)
 
 	if file_format_type == "CSV":
-
 		# convert to csv
 		import csv
 
@@ -401,7 +398,6 @@ def export_query():
 		frappe.response["doctype"] = title
 
 	elif file_format_type == "Excel":
-
 		from frappe.utils.xlsxutils import make_xlsx
 
 		xlsx_file = make_xlsx(data, doctype)
@@ -420,10 +416,10 @@ def append_totals_row(data):
 
 	for row in data:
 		for i in range(len(row)):
-			if isinstance(row[i], (float, int)):
+			if isinstance(row[i], float | int):
 				totals[i] = (totals[i] or 0) + row[i]
 
-	if not isinstance(totals[0], (int, float)):
+	if not isinstance(totals[0], int | float):
 		totals[0] = "Total"
 
 	data.append(totals)
@@ -507,7 +503,9 @@ def delete_bulk(doctype, items):
 			if len(items) >= 5:
 				frappe.publish_realtime(
 					"progress",
-					dict(progress=[i + 1, len(items)], title=_("Deleting {0}").format(doctype), description=d),
+					dict(
+						progress=[i + 1, len(items)], title=_("Deleting {0}").format(doctype), description=d
+					),
 					user=frappe.session.user,
 				)
 			# Commit after successful deletion
@@ -561,7 +559,7 @@ def get_stats(stats, doctype, filters=None):
 			tag_count = frappe.get_list(
 				doctype,
 				fields=[column, "count(*)"],
-				filters=filters + [[column, "!=", ""]],
+				filters=[*filters, [column, "!=", ""]],
 				group_by=column,
 				as_list=True,
 				distinct=1,
@@ -572,7 +570,7 @@ def get_stats(stats, doctype, filters=None):
 				no_tag_count = frappe.get_list(
 					doctype,
 					fields=[column, "count(*)"],
-					filters=filters + [[column, "in", ("", ",")]],
+					filters=[*filters, [column, "in", ("", ",")]],
 					as_list=True,
 					group_by=column,
 					order_by=column,
@@ -586,7 +584,7 @@ def get_stats(stats, doctype, filters=None):
 
 		except frappe.db.SQLError:
 			pass
-		except frappe.db.InternalError as e:
+		except frappe.db.InternalError:
 			# raised when _user_tags column is added on the fly
 			pass
 
@@ -604,14 +602,14 @@ def get_filter_dashboard_data(stats, doctype, filters=None):
 
 	columns = frappe.db.get_table_columns(doctype)
 	for tag in tags:
-		if not tag["name"] in columns:
+		if tag["name"] not in columns:
 			continue
 		tagcount = []
 		if tag["type"] not in ["Date", "Datetime"]:
 			tagcount = frappe.get_list(
 				doctype,
 				fields=[tag["name"], "count(*)"],
-				filters=filters + ["ifnull(`%s`,'')!=''" % tag["name"]],
+				filters=[*filters, "ifnull(`%s`,'')!=''" % tag["name"]],
 				group_by=tag["name"],
 				as_list=True,
 			)
@@ -633,12 +631,11 @@ def get_filter_dashboard_data(stats, doctype, filters=None):
 					frappe.get_list(
 						doctype,
 						fields=[tag["name"], "count(*)"],
-						filters=filters + ["({0} = '' or {0} is null)".format(tag["name"])],
+						filters=[*filters, "({0} = '' or {0} is null)".format(tag["name"])],
 						as_list=True,
 					)[0][1],
 				]
 				if data and data[1] != 0:
-
 					stats[tag["name"]].append(data)
 		else:
 			stats[tag["name"]] = tagcount
@@ -678,17 +675,13 @@ def get_match_cond(doctype, as_condition=True):
 
 
 def build_match_conditions(doctype, user=None, as_condition=True):
-	match_conditions = DatabaseQuery(doctype, user=user).build_match_conditions(
-		as_condition=as_condition
-	)
+	match_conditions = DatabaseQuery(doctype, user=user).build_match_conditions(as_condition=as_condition)
 	if as_condition:
 		return match_conditions.replace("%", "%%")
 	return match_conditions
 
 
-def get_filters_cond(
-	doctype, filters, conditions, ignore_permissions=None, with_match_conditions=False
-):
+def get_filters_cond(doctype, filters, conditions, ignore_permissions=None, with_match_conditions=False):
 	if isinstance(filters, str):
 		filters = json.loads(filters)
 
@@ -700,7 +693,7 @@ def get_filters_cond(
 			for f in filters:
 				if isinstance(f[1], str) and f[1][0] == "!":
 					flt.append([doctype, f[0], "!=", f[1][1:]])
-				elif isinstance(f[1], (list, tuple)) and f[1][0].lower() in (
+				elif isinstance(f[1], list | tuple) and f[1][0].lower() in (
 					"=",
 					">",
 					"<",
@@ -714,7 +707,6 @@ def get_filters_cond(
 					"between",
 					"is",
 				):
-
 					flt.append([doctype, f[0], f[1][0], f[1][1]])
 				else:
 					flt.append([doctype, f[0], "=", f[1]])

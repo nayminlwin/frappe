@@ -472,7 +472,9 @@ class DatabaseQuery:
 
 				if table_name.lower().startswith("group_concat("):
 					table_name = table_name[13:]
-				if not table_name[0] == "`":
+				if table_name.lower().startswith("distinct"):
+					table_name = table_name[8:].strip()
+				if table_name[0] != "`":
 					table_name = f"`{table_name}`"
 				if (
 					table_name not in self.query_tables
@@ -642,7 +644,7 @@ class DatabaseQuery:
 				# field: 'distinct name'
 				# column: 'name'
 				else:
-					column = field.split(" ", 2)[1].replace("`", "")
+					column = field.split(" ", 1)[1].replace("`", "")
 			else:
 				# field: 'count(`tabPhoto`.name) as total_count'
 				# column: 'tabPhoto.name'
@@ -1019,20 +1021,17 @@ class DatabaseQuery:
 		if match_filters:
 			self.match_filters.append(match_filters)
 
-	def get_permission_query_conditions(self):
+	def get_permission_query_conditions(self) -> str:
 		conditions = []
-		condition_methods = frappe.get_hooks("permission_query_conditions", {}).get(self.doctype, [])
-		if condition_methods:
-			for method in condition_methods:
-				c = frappe.call(frappe.get_attr(method), self.user)
-				if c:
-					conditions.append(c)
+		hooks = frappe.get_hooks("permission_query_conditions", {})
+		condition_methods = hooks.get(self.doctype, []) + hooks.get("*", [])
+		for method in condition_methods:
+			if c := frappe.call(frappe.get_attr(method), self.user, doctype=self.doctype):
+				conditions.append(c)
 
-		permision_script_name = get_server_script_map().get("permission_query", {}).get(self.doctype)
-		if permision_script_name:
-			script = frappe.get_doc("Server Script", permision_script_name)
-			condition = script.get_permission_query_conditions(self.user)
-			if condition:
+		if permission_script_name := get_server_script_map().get("permission_query", {}).get(self.doctype):
+			script = frappe.get_doc("Server Script", permission_script_name)
+			if condition := script.get_permission_query_conditions(self.user):
 				conditions.append(condition)
 
 		return " and ".join(conditions) if conditions else ""
@@ -1076,11 +1075,6 @@ class DatabaseQuery:
 						args.order_by = (
 							f"`tab{self.doctype}`.`{sort_field or 'modified'}` {sort_order or 'desc'}"
 						)
-
-				# draft docs always on top
-				if hasattr(self.doctype_meta, "is_submittable") and self.doctype_meta.is_submittable:
-					if self.order_by:
-						args.order_by = f"`tab{self.doctype}`.docstatus asc, {args.order_by}"
 
 	def validate_order_by_and_group_by(self, parameters: str):
 		"""Check order by, group by so that atleast one column is selected and does not have subquery"""

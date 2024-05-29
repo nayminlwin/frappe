@@ -70,7 +70,7 @@ class Database:
 			self.user = frappe.conf.db_name
 
 		self.transaction_writes = 0
-		self.auto_commit_on_many_writes = 0
+		self.auto_commit_on_many_writes = 1
 
 		self.password = password or frappe.conf.db_password
 		self.value_cache = {}

@@ -1171,7 +1171,7 @@ Object.assign(frappe.utils, {
 	},
 
 	get_number_system: function (country) {
-		if (["Bangladesh", "India", "Myanmar", "Pakistan"].includes(country)) {
+		if (["Bangladesh", "India", "Pakistan"].includes(country)) {
 			return number_systems.indian;
 		} else if (country == "Nepal") {
 			return number_systems.nepalese;

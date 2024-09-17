@@ -598,15 +598,6 @@ export default class ChartWidget extends Widget {
 			options = this.report_result.chart.options;
 		}
 
-		chart_args.tooltipOptions = {
-			formatTooltipY: (value) =>
-				frappe.format(
-					value,
-					{ fieldtype, options },
-					{ always_show_decimals: true, inline: true }
-				),
-		};
-
 		if (this.chart_doc.type == "Heatmap") {
 			const heatmap_year = parseInt(
 				this.selected_heatmap_year ||
@@ -628,6 +619,8 @@ export default class ChartWidget extends Widget {
 				} else {
 					chart_args[key] = custom_options[key];
 				}
+				if (key == 'fieldtype')
+					fieldtype = custom_options[key]
 			}
 		};
 
@@ -638,6 +631,15 @@ export default class ChartWidget extends Widget {
 		if (this.chart_doc.custom_options) {
 			set_options(this.chart_doc.custom_options);
 		}
+
+		chart_args.tooltipOptions = {
+			formatTooltipY: (value) =>
+				frappe.format(
+					value,
+					{ fieldtype, options },
+					{ always_show_decimals: true, inline: true }
+				),
+		};
 
 		return chart_args;
 	}

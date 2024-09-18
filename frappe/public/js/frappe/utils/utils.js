@@ -936,18 +936,18 @@ Object.assign(frappe.utils, {
 		let route = route_str.split("/");
 
 		if (route[2] === "Report" || route[0] === "query-report") {
-			return __("{0} Report", [route[3] || route[1]]);
+			return __("{0} Report", [__(route[3]) || __(route[1])]);
 		}
 		if (route[0] === "List") {
-			return __("{0} List", [route[1]]);
+			return __("{0} List", [__(route[1])]);
 		}
 		if (route[0] === "modules") {
-			return __("{0} Modules", [route[1]]);
+			return __("{0} Modules", [__(route[1])]);
 		}
 		if (route[0] === "dashboard") {
-			return __("{0} Dashboard", [route[1]]);
+			return __("{0} Dashboard", [__(route[1])]);
 		}
-		return __(frappe.utils.to_title_case(route[0], true));
+		return __(frappe.utils.to_title_case(__(route[0]), true));
 	},
 	report_column_total: function (values, column, type) {
 		if (column.column.disable_total) {
@@ -1192,6 +1192,8 @@ Object.assign(frappe.utils, {
 	get_number_system: function (country) {
 		if (["Bangladesh", "India", "Pakistan"].includes(country)) {
 			return number_systems.indian;
+		} else if (country == "Nepal") {
+			return number_systems.nepalese;
 		} else {
 			return number_systems.default;
 		}
@@ -1205,6 +1207,7 @@ Object.assign(frappe.utils, {
 			attribution:
 				'&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
 		},
+		image_path: "/assets/frappe/images/leaflet/",
 	},
 
 	icon(icon_name, size = "sm", icon_class = "", icon_style = "", svg_class = "") {
@@ -1344,10 +1347,19 @@ Object.assign(frappe.utils, {
 
 		// return number if total digits is lesser than min_length
 		const len = String(number).match(/\d/g).length;
-		if (len < min_length) return number.toString();
+		if (len < min_length) {
+			return number.toString();
+		}
 
 		const number_system = this.get_number_system(country);
 		let x = Math.abs(Math.round(number));
+
+		// if rounding was sufficient to get below min_length, return the rounded number
+		const x_string = x.toString();
+		if (x_string.length < min_length) {
+			return x_string;
+		}
+
 		for (const map of number_system) {
 			if (x >= map.divisor) {
 				let result = number / map.divisor;
@@ -1551,6 +1563,9 @@ Object.assign(frappe.utils, {
 	},
 
 	fetch_link_title(doctype, name) {
+		if (!doctype || !name) {
+			return;
+		}
 		try {
 			return frappe
 				.xcall("frappe.desk.search.get_link_title", {

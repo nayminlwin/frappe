@@ -25,9 +25,7 @@ class LegacyPassword(pbkdf2_sha256):
 		# check if this is a mysql hash
 		# it is possible that we will generate a false positive if the users password happens to be 40 hex chars proceeded
 		# by an * char, but this seems highly unlikely
-		if not (
-			secret[0] == "*" and len(secret) == 41 and all(c in string.hexdigits for c in secret[1:])
-		):
+		if not (secret[0] == "*" and len(secret) == 41 and all(c in string.hexdigits for c in secret[1:])):
 			secret = mysql41.hash(secret + self.salt.decode("utf-8"))
 		return super()._calc_checksum(secret)
 
@@ -59,7 +57,7 @@ def get_decrypted_password(doctype, name, fieldname="password", raise_exception=
 	).run()
 
 	if result and result[0][0]:
-		return decrypt(result[0][0])
+		return decrypt(result[0][0], key=f"{doctype}.{name}.{fieldname}")
 
 	elif raise_exception:
 		frappe.throw(
@@ -211,7 +209,7 @@ def encrypt(txt, encryption_key=None):
 	return cipher_text
 
 
-def decrypt(txt, encryption_key=None):
+def decrypt(txt, encryption_key=None, key: str | None = None):
 	# Only use encryption_key value generated with Fernet.generate_key().decode()
 
 	try:
@@ -220,11 +218,16 @@ def decrypt(txt, encryption_key=None):
 	except InvalidToken:
 		# encryption_key in site_config is changed and not valid
 		frappe.throw(
-			_("Encryption key is invalid! Please check site_config.json")
-			+ "<br>"
+			(_("Failed to decrypt key {0}").format(key) + "<br><br>" if key else "")
+			+ _("Encryption key is invalid! Please check site_config.json")
+			+ "<br><br>"
 			+ _(
 				"If you have recently restored the site you may need to copy the site config contaning original Encryption Key."
 			)
+			+ "<br><br>"
+			+ _(
+				"Please visit https://frappecloud.com/docs/sites/migrate-an-existing-site#encryption-key for more information."
+			),
 		)
 
 
@@ -240,4 +243,4 @@ def get_encryption_key():
 
 
 def get_password_reset_limit():
-	return frappe.db.get_single_value("System Settings", "password_reset_limit") or 0
+	return frappe.get_system_settings("password_reset_limit") or 3

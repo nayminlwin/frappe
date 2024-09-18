@@ -345,6 +345,11 @@ $.extend(frappe.model, {
 		return frappe.boot.user.can_delete.indexOf(doctype) !== -1;
 	},
 
+	can_submit: function (doctype) {
+		if (!doctype) return false;
+		return frappe.boot.user.can_submit.indexOf(doctype) !== -1;
+	},
+
 	can_cancel: function (doctype) {
 		if (!doctype) return false;
 		return frappe.boot.user.can_cancel.indexOf(doctype) !== -1;
@@ -738,6 +743,9 @@ $.extend(frappe.model, {
 	},
 
 	round_floats_in: function (doc, fieldnames) {
+		if (!doc) {
+			return;
+		}
 		if (!fieldnames) {
 			fieldnames = frappe.meta.get_fieldnames(doc.doctype, doc.parent, {
 				fieldtype: ["in", ["Currency", "Float"]],

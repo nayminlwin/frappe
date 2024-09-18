@@ -107,6 +107,7 @@ frappe.router = {
 	layout_mapped: {},
 
 	is_app_route(path) {
+		if (!path) return;
 		// desk paths must begin with /app or doctype route
 		if (path.substr(0, 1) === "/") path = path.substr(1);
 		path = path.split("/");
@@ -227,11 +228,15 @@ frappe.router = {
 			} else if (frappe.model.is_single(doctype_route.doctype)) {
 				route = ["Form", doctype_route.doctype, doctype_route.doctype];
 			} else if (meta.default_view) {
-				route = [
-					"List",
-					doctype_route.doctype,
-					this.list_views_route[meta.default_view.toLowerCase()],
-				];
+				if (meta.default_view === "Tree") {
+					route = ["Tree", doctype_route.doctype];
+				} else {
+					route = [
+						"List",
+						doctype_route.doctype,
+						this.list_views_route[meta.default_view.toLowerCase()],
+					];
+				}
 			} else {
 				route = ["List", doctype_route.doctype, "List"];
 			}
@@ -249,7 +254,7 @@ frappe.router = {
 			standard_route = ["Tree", doctype_route.doctype];
 		} else {
 			let new_route = this.list_views_route[_route.toLowerCase()];
-			let re_route = route[2].toLowerCase() !== new_route.toLowerCase();
+			let re_route = route[2].toLowerCase() !== new_route?.toLowerCase();
 
 			if (re_route) {
 				/**

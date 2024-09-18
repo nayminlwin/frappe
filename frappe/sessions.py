@@ -44,16 +44,17 @@ def clear_sessions(user=None, keep_current=False, device=None, force=False):
 	if force:
 		reason = "Force Logged out by the user"
 
-	for sid in get_sessions_to_clear(user, keep_current, device):
+	for sid in get_sessions_to_clear(user, keep_current, device, force):
 		delete_session(sid, reason=reason)
 
 
-def get_sessions_to_clear(user=None, keep_current=False, device=None):
+def get_sessions_to_clear(user=None, keep_current=False, device=None, force=False):
 	"""Returns sessions of the current user. Called at login / logout
 
 	:param user: user name (default: current user)
 	:param keep_current: keep current session (default: false)
 	:param device: delete sessions of this device (default: desktop, mobile)
+	:param force: ignore simultaneous sessions count, log the user out of all except current (default: false)
 	"""
 	if not user:
 		user = frappe.session.user
@@ -61,26 +62,23 @@ def get_sessions_to_clear(user=None, keep_current=False, device=None):
 	if not device:
 		device = ("desktop", "mobile")
 
-	if not isinstance(device, (tuple, list)):
+	if not isinstance(device, tuple | list):
 		device = (device,)
 
 	offset = 0
-	if user == frappe.session.user:
+	if not force and user == frappe.session.user:
 		simultaneous_sessions = frappe.db.get_value("User", user, "simultaneous_sessions") or 1
-		offset = simultaneous_sessions - 1
+		offset = simultaneous_sessions
 
 	session = frappe.qb.DocType("Sessions")
-	session_id = frappe.qb.from_(session).where(
-		(session.user == user) & (session.device.isin(device))
-	)
+	session_id = frappe.qb.from_(session).where((session.user == user) & (session.device.isin(device)))
 	if keep_current:
+		if not force:
+			offset = max(0, offset - 1)
 		session_id = session_id.where(session.sid != frappe.session.sid)
 
 	query = (
-		session_id.select(session.sid)
-		.offset(offset)
-		.limit(100)
-		.orderby(session.lastupdate, order=Order.desc)
+		session_id.select(session.sid).offset(offset).limit(100).orderby(session.lastupdate, order=Order.desc)
 	)
 
 	return query.run(pluck=True)
@@ -90,7 +88,7 @@ def delete_session(sid=None, user=None, reason="Session Expired"):
 	from frappe.core.doctype.activity_log.feed import logout_feed
 
 	if frappe.flags.read_only:
-		# This isn't manually initated logout, most likely user's cookies were expired in such case
+		# This isn't manually initiated logout, most likely user's cookies were expired in such case
 		# we should just ignore it till database is back up again.
 		return
 
@@ -98,9 +96,7 @@ def delete_session(sid=None, user=None, reason="Session Expired"):
 	frappe.cache().hdel("last_db_session_update", sid)
 	if sid and not user:
 		table = frappe.qb.DocType("Sessions")
-		user_details = (
-			frappe.qb.from_(table).where(table.sid == sid).select(table.user).run(as_dict=True)
-		)
+		user_details = frappe.qb.from_(table).where(table.sid == sid).select(table.user).run(as_dict=True)
 		if user_details:
 			user = user_details[0].get("user")
 
@@ -213,9 +209,7 @@ class Session:
 	__slots__ = ("user", "device", "user_type", "full_name", "data", "time_diff", "sid")
 
 	def __init__(self, user, resume=False, full_name=None, user_type=None):
-		self.sid = cstr(
-			frappe.form_dict.get("sid") or unquote(frappe.request.cookies.get("sid", "Guest"))
-		)
+		self.sid = cstr(frappe.form_dict.get("sid") or unquote(frappe.request.cookies.get("sid", "Guest")))
 		self.user = user
 		self.device = frappe.form_dict.get("device") or "desktop"
 		self.user_type = user_type
@@ -231,7 +225,15 @@ class Session:
 
 		else:
 			if self.user:
+				self.validate_user()
 				self.start()
+
+	def validate_user(self):
+		if not frappe.get_cached_value("User", self.user, "enabled"):
+			frappe.throw(
+				_("User {0} is disabled. Please contact your System Manager.").format(self.user),
+				frappe.ValidationError,
+			)
 
 	def start(self):
 		"""start a new session"""
@@ -289,9 +291,7 @@ class Session:
 				Sessions.status,
 				Sessions.device,
 			)
-			.insert(
-				(str(self.data["data"]), self.data["user"], now, self.data["sid"], "Active", self.device)
-			)
+			.insert((str(self.data["data"]), self.data["user"], now, self.data["sid"], "Active", self.device))
 		).run()
 		frappe.cache().hset("session", self.data.sid, self.data)
 
@@ -305,6 +305,7 @@ class Session:
 		if data:
 			self.data.update({"data": data, "user": data.user, "sid": self.sid})
 			self.user = data.user
+			self.validate_user()
 			validate_ip_address(self.user)
 			self.device = data.device
 		else:

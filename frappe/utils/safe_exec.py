@@ -122,9 +122,16 @@ def _validate_safe_eval_syntax(code):
 
 @contextmanager
 def safe_exec_flags():
-	frappe.flags.in_safe_exec = True
-	yield
-	frappe.flags.in_safe_exec = False
+	if not frappe.flags.in_safe_exec:
+		frappe.flags.in_safe_exec = 0
+
+	frappe.flags.in_safe_exec += 1
+
+	try:
+		yield
+	finally:
+		# Always ensure that the flag is decremented
+		frappe.flags.in_safe_exec -= 1
 
 
 def get_safe_globals():
@@ -202,6 +209,8 @@ def get_safe_globals():
 			make_get_request=frappe.integrations.utils.make_get_request,
 			make_post_request=frappe.integrations.utils.make_post_request,
 			make_put_request=frappe.integrations.utils.make_put_request,
+			make_patch_request=frappe.integrations.utils.make_patch_request,
+			make_delete_request=frappe.integrations.utils.make_delete_request,
 			socketio_port=frappe.conf.socketio_port,
 			get_hooks=get_hooks,
 			enqueue=safe_enqueue,
@@ -296,9 +305,7 @@ def call_whitelisted_function(function, **kwargs):
 def run_script(script, **kwargs):
 	"""run another server script"""
 
-	return call_with_form_dict(
-		lambda: frappe.get_doc("Server Script", script).execute_method(), kwargs
-	)
+	return call_with_form_dict(lambda: frappe.get_doc("Server Script", script).execute_method(), kwargs)
 
 
 def call_with_form_dict(function, kwargs):
@@ -453,7 +460,7 @@ def _validate_attribute_read(object, name):
 	if isinstance(name, str) and (name in UNSAFE_ATTRIBUTES):
 		raise SyntaxError(f"{name} is an unsafe attribute")
 
-	if isinstance(object, (types.ModuleType, types.CodeType, types.TracebackType, types.FrameType)):
+	if isinstance(object, types.ModuleType | types.CodeType | types.TracebackType | types.FrameType):
 		raise SyntaxError(f"Reading {object} attributes is not allowed")
 
 	if name.startswith("_"):
@@ -464,16 +471,14 @@ def _write(obj):
 	# guard function for RestrictedPython
 	if isinstance(
 		obj,
-		(
-			types.ModuleType,
-			types.CodeType,
-			types.TracebackType,
-			types.FrameType,
-			type,
-			types.FunctionType,  # covers lambda
-			types.MethodType,
-			types.BuiltinFunctionType,  # covers methods
-		),
+		types.ModuleType
+		| types.CodeType
+		| types.TracebackType
+		| types.FrameType
+		| type
+		| types.FunctionType
+		| types.MethodType
+		| types.BuiltinFunctionType,
 	):
 		raise SyntaxError(f"Not allowed to write to object {obj} of type {type(obj)}")
 	return obj
@@ -527,6 +532,7 @@ VALID_UTILS = (
 	"nowtime",
 	"get_first_day",
 	"get_quarter_start",
+	"get_quarter_ending",
 	"get_first_day_of_week",
 	"get_year_start",
 	"get_last_day_of_week",

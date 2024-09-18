@@ -339,12 +339,16 @@ frappe.setup.SetupWizardSlide = class SetupWizardSlide extends frappe.ui.Slide {
 	setup_telemetry_events() {
 		let me = this;
 		this.fields.filter(frappe.model.is_value_type).forEach((field) => {
-			me.get_input(field.fieldname).on("change", function () {
-				frappe.telemetry.capture(`${field.fieldname}_set`, "setup");
-				if (field.fieldname == "enable_telemetry" && !me.get_value("enable_telemetry")) {
-					frappe.telemetry.disable();
-				}
-			});
+			field.fieldname &&
+				me.get_input(field.fieldname)?.on?.("change", function () {
+					frappe.telemetry.capture(`${field.fieldname}_set`, "setup");
+					if (
+						field.fieldname == "enable_telemetry" &&
+						!me.get_value("enable_telemetry")
+					) {
+						frappe.telemetry.disable();
+					}
+				});
 		});
 	}
 };
@@ -449,7 +453,15 @@ frappe.setup.slides_settings = [
 				fieldtype: "Data",
 				options: "Email",
 			},
-			{ fieldname: "password", label: __("Password"), fieldtype: "Password" },
+			{
+				fieldname: "password",
+				label:
+					frappe.session.user === "Administrator"
+						? __("Password")
+						: __("Update Password"),
+				fieldtype: "Password",
+				length: 512,
+			},
 		],
 
 		onload: function (slide) {
@@ -589,9 +601,11 @@ frappe.setup.utils = {
 			Bind a slide's country, timezone and currency fields
 		*/
 		slide.get_input("country").on("change", function () {
-			let country = slide.get_input("country").val();
-			let $timezone = slide.get_input("timezone");
 			let data = frappe.setup.data.regional_data;
+			let country = slide.get_input("country").val();
+			if (!(country in data.country_info)) return;
+
+			let $timezone = slide.get_input("timezone");
 
 			$timezone.empty();
 
